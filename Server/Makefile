@@ -4,27 +4,62 @@ CXXFLAGS = -std=c++20 -Wall -O2 -Dnum_thread -Wno-deprecated-declarations
 
 # Compiler for C (for civetweb.c)
 CC = gcc
-# Added -DNO_SSL_DL to disable dynamic OpenSSL loading
 CFLAGS = -Wall -O2 -Dnum_thread -DOPENSSL_API_3_0 -DNO_SSL_DL
 
-# Linker flags: Added -lssl (needed by CivetWeb) and kept -ldl
-LDFLAGS = -lmysqlclient -lpthread -lcrypto -lssl -ldl
+# Linker libraries
+LDLIBS = -lmysqlclient -lpthread -lcrypto -lssl -ldl
 
-# List all .o files explicitly
-OBJ = server.o LRUCache.o MySQLHelper.o MySQLPool.o CivetServer.o civetweb.o
+# --- NEW STRUCTURE ---
+
+# Directories
+BUILD_DIR = build
+SRC_DIR = src
+DEPS_DIR = third_party
+INC_DIR = include
+
+# Tell 'make' where to find source files
+VPATH = $(SRC_DIR):$(DEPS_DIR)/civetweb
+
+# Tell compilers where to find header files
+INC_PATHS = -I$(INC_DIR) -I$(DEPS_DIR)/civetweb -I$(DEPS_DIR)
+CXXFLAGS += $(INC_PATHS)
+CFLAGS += $(INC_PATHS)
+
+# Final executable name
 TARGET = server
 
-# Rule to link the final target
-$(TARGET): $(OBJ)
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+# List of OBJECT files (not sources)
+OBJ_FILES = server.o LRUCache.o MySQLHelper.o MySQLPool.o CivetServer.o civetweb.o
 
-# Rule for compiling C++ (.cpp) files
-%.o: %.cpp
+# Add the build directory prefix to all object files
+OBJ = $(addprefix $(BUILD_DIR)/, $(OBJ_FILES))
+
+# --- RULES ---
+
+# Default rule: build the executable
+all: $(BUILD_DIR)/$(TARGET)
+
+# Rule to link the final target
+$(BUILD_DIR)/$(TARGET): $(OBJ)
+	@echo "Linking $(TARGET)..."
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(LDLIBS)
+
+# Rules for compiling C++ and C files
+# This pattern puts all .o files into $(BUILD_DIR)
+$(BUILD_DIR)/%.o: %.cpp | $(BUILD_DIR)
+	@echo "Compiling $<..."
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# Rule for compiling C (.c) files
-%.o: %.c
+$(BUILD_DIR)/%.o: %.c | $(BUILD_DIR)
+	@echo "Compiling $<..."
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# Rule to create the build directory
+$(BUILD_DIR):
+	@mkdir -p $@
+
+# 'make clean' rule
+.PHONY: clean all
 clean:
-	rm -f $(OBJ) $(TARGET)
+	@echo "Cleaning up..."
+	rm -rf $(BUILD_DIR)

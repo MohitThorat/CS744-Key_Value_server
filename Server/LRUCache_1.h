@@ -9,7 +9,7 @@
 #pragma once
 
 // Configuration for sharding
-const size_t NUM_SHARDS = 32;
+const size_t NUM_SHARDS = 1024;
 
 // Internal structure for each shard - REMAINS UNCHANGED
 struct CacheShard {

@@ -10,9 +10,9 @@
 using json = nlohmann::json;
 #define cache_size 1024
 LRUCache cache(cache_size);
-MySQLPool mysql_pool("localhost", "root", "", "KVStore", 3306, 6);
+MySQLPool mysql_pool("localhost", "root", "", "KVStore", 3306, 10);
 #ifdef num_thread
-const char *num_threads = "400";
+const char *num_threads = "2";
 #else
 const char *num_threads = "1";
 #endif
@@ -28,7 +28,6 @@ public:
         if (server->getParam(conn, "key", key))
         {
 
-            ostringstream oss;
             string value = cache.get(key);
             if (value.empty())
             {
@@ -42,22 +41,25 @@ public:
                 }
             }
 
-            oss << "{\"key\": \"" << key << "\", \"value\": \"" << value << "\"}";
-            response_body = oss.str();
+            // In handleGet
+            json j_response;
+            j_response["key"] = key;
+            j_response["value"] = value;
+            response_body = j_response.dump(); // Much faster than ostringstream
         }
         else
         {
             // Failure, 'id' was not found
             response_body = "{\"error\": \"No 'key' parameter was provided.\"}";
         }
-        // 3. Send the response
+
         mg_printf(conn,
                   "HTTP/1.1 200 OK\r\n"
                   "Content-Type: application/json\r\n"
-                  "Content-Length: %d\r\n\r\n",
-                  (int)response_body.length());
-
-        mg_write(conn, response_body.c_str(), response_body.length());
+                  "Content-Length: %zu\r\n\r\n" // <-- Headers end here
+                  "%s",                         // <-- Add format specifier for the body
+                  response_body.length(),
+                  response_body.c_str()); // <-- Pass the body as an argument
 
         return true; // We handled the request
     }
@@ -66,6 +68,24 @@ public:
     {
         long long content_length = mg_get_request_info(conn)->content_length;
         string post_data, key, value;
+        // --- FIX: VALIDATE THE CONTENT-LENGTH ---
+        if (content_length <= 0)
+        {
+            // 411 Length Required is the correct HTTP response
+            json j_error;
+            j_error["status"] = "error";
+            j_error["message"] = "Content-Length header is missing or invalid.";
+            std::string err_resp = j_error.dump();
+
+            mg_printf(conn,
+                      "HTTP/1.1 411 Length Required\r\n"
+                      "Content-Type: application/json\r\n"
+                      "Content-Length: %zu\r\n\r\n"
+                      "%s",
+                      err_resp.length(),
+                      err_resp.c_str());
+            return true;
+        }
         post_data.resize(content_length);
         mg_read(conn, post_data.data(), content_length);
 
@@ -80,8 +100,18 @@ public:
         }
         catch (...)
         {
-            std::string err_resp = "{\"status\": \"error\", \"message\": \"Invalid JSON format\"}";
-            mg_send_http_error(conn, 400, "Bad Request: Invalid JSON");
+            json j_error;
+            j_error["status"] = "error";
+            j_error["message"] = "Invalid JSON format";
+            std::string err_resp = j_error.dump();
+
+            mg_printf(conn,
+                      "HTTP/1.1 400 Bad Request\r\n"
+                      "Content-Type: application/json\r\n"
+                      "Content-Length: %zu\r\n\r\n"
+                      "%s",
+                      err_resp.length(),
+                      err_resp.c_str());
             return true;
         }
 
@@ -92,14 +122,19 @@ public:
         async_insert(mysql_pool, key, key_hash, value);
 
         // Send Success Response
-        std::ostringstream oss;
-        oss << "{\"status\": \"ok\", \"created_key\": \"" << key << "\"}";
-        std::string response_body = oss.str();
         // = std::format("{{\"status\": \"ok\", \"create_key\": \"{}\"}}", key);
+        json j_response;
+        j_response["status"] = "ok";
+        j_response["created_key"] = key;
+        string response_body = j_response.dump(); // Much faster than ostringstream
 
-        mg_printf(conn, "HTTP/1.1 201 Created\r\nContent-Type: application/json\r\nContent-Length: %zu\r\n\r\n", response_body.length());
-        mg_write(conn, response_body.c_str(), response_body.length());
-
+        mg_printf(conn,
+                  "HTTP/1.1 201 Created\r\n"
+                  "Content-Type: application/json\r\n"
+                  "Content-Length: %zu\r\n\r\n" // <-- Headers end here
+                  "%s",                         // <-- Add format specifier for the body
+                  response_body.length(),
+                  response_body.c_str()); // <-- Pass the body as an argument
         return true;
     }
     bool handleDelete(CivetServer *server, struct mg_connection *conn) override
@@ -117,7 +152,18 @@ public:
         // Check if the URI is just "/keys" or if a key is present
         if (last_slash_pos == std::string::npos || last_slash_pos == uri.length() - 1)
         {
-            mg_send_http_error(conn, 400, "Bad Request: No key specified in path.");
+            json j_error;
+            j_error["status"] = "error";
+            j_error["message"] = "No key specified in path";
+            std::string err_resp = j_error.dump();
+
+            mg_printf(conn,
+                      "HTTP/1.1 400 Bad Request\r\n"
+                      "Content-Type: application/json\r\n"
+                      "Content-Length: %zu\r\n\r\n"
+                      "%s",
+                      err_resp.length(),
+                      err_resp.c_str());
             return true;
         }
 
@@ -129,17 +175,18 @@ public:
         auto key_hash = md5_hash(key_to_delete);
         async_delete(mysql_pool, key_hash);
 
-        std::ostringstream oss;
-        oss << "{\"status\": \"ok\", \"message\": \"" << key_to_delete << " deleted successfully.\"}";
-        response_body = oss.str();
+        json j_response;
+        j_response["status"] = "ok";
+        j_response["key_to_delete"] = "deleted successfully";
+        response_body = j_response.dump(); // Much faster than ostringstream
 
         mg_printf(conn,
-                  "HTTP/1.1 200 OK\r\n"
+                  "HTTP/1.1 200 OK\r\n" // <-- FIX
                   "Content-Type: application/json\r\n"
-                  "Content-Length: %d\r\n\r\n",
-                  (int)response_body.length());
-
-        mg_write(conn, response_body.c_str(), response_body.length());
+                  "Content-Length: %zu\r\n\r\n"
+                  "%s",
+                  response_body.length(),
+                  response_body.c_str());
 
         return true; // We handled the request
     }
@@ -155,11 +202,11 @@ int main(void)
     try
     {
         // Number of DB worker threads
-        const int num_db_threads = 2; // heuristic
+        const int num_db_threads = 10; // heuristic
 
         for (int i = 0; i < num_db_threads; ++i)
         {
-            std::thread(db_worker,std::ref(mysql_pool)).detach();
+            std::thread(db_worker, std::ref(mysql_pool)).detach();
         }
         CivetServer server(options); // Server starts here
 
