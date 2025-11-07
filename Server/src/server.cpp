@@ -10,9 +10,9 @@
 using json = nlohmann::json;
 #define cache_size 1024
 LRUCache cache(cache_size);
-MySQLPool mysql_pool("localhost", "root", "", "KVStore", 3306, 10);
+MySQLPool mysql_pool("localhost", "root", "", "KVStore", 3306, 20);
 #ifdef num_thread
-const char *num_threads = "2";
+const char *num_threads = "8";
 #else
 const char *num_threads = "1";
 #endif
@@ -52,7 +52,7 @@ public:
             // Failure, 'id' was not found
             response_body = "{\"error\": \"No 'key' parameter was provided.\"}";
         }
-
+        cout<<"reached here"<<endl;
         mg_printf(conn,
                   "HTTP/1.1 200 OK\r\n"
                   "Content-Type: application/json\r\n"
@@ -194,7 +194,8 @@ public:
 
 int main(void)
 {
-
+// VVV ADD THIS LINE VVV
+    std::cout << "\n\n--- RUNNING THE 8-THREAD SERVER (THE NEW CODE) ---\n\n" << std::endl;
     const char *options[] = {
         "listening_ports", "8888", "num_threads", num_threads,
         NULL};
