@@ -27,7 +27,9 @@ public:
         string key, response_body;
         if (server->getParam(conn, "key", key))
         {
-
+            // In handleGet
+            json j_response;
+            j_response["key"] = key;
             string value = cache.get(key);
             if (value.empty())
             {
@@ -38,29 +40,32 @@ public:
                 if (!value.empty())
                 { // Only cache if we found it
                     cache.put(key, value);
+                    j_response["value"] = value;
+                }
+                else{
+                    j_response["error"] = "Key not found";
                 }
             }
-
-            // In handleGet
-            json j_response;
-            j_response["key"] = key;
-            j_response["value"] = value;
-            response_body = j_response.dump(); // Much faster than ostringstream
+            else
+            {
+                j_response["value"] = value;
+            }
+            
+            response_body = j_response.dump();
         }
         else
         {
             // Failure, 'id' was not found
             response_body = "{\"error\": \"No 'key' parameter was provided.\"}";
         }
-        cout<<"reached here"<<endl;
-        mg_printf(conn,
-                  "HTTP/1.1 200 OK\r\n"
-                  "Content-Type: application/json\r\n"
-                  "Content-Length: %zu\r\n\r\n" // <-- Headers end here
-                  "%s",                         // <-- Add format specifier for the body
-                  response_body.length(),
-                  response_body.c_str()); // <-- Pass the body as an argument
 
+        mg_printf(conn,
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: application/json\r\n"
+            "Content-Length: %zu\r\n\r\n",
+            response_body.size());
+
+        mg_write(conn, response_body.data(), response_body.size());
         return true; // We handled the request
     }
 
@@ -80,10 +85,10 @@ public:
             mg_printf(conn,
                       "HTTP/1.1 411 Length Required\r\n"
                       "Content-Type: application/json\r\n"
-                      "Content-Length: %zu\r\n\r\n"
-                      "%s",
-                      err_resp.length(),
-                      err_resp.c_str());
+                      "Content-Length: %zu\r\n\r\n",
+                      err_resp.size());
+            mg_write(conn, err_resp.data(), err_resp.size());
+
             return true;
         }
         post_data.resize(content_length);
@@ -108,10 +113,10 @@ public:
             mg_printf(conn,
                       "HTTP/1.1 400 Bad Request\r\n"
                       "Content-Type: application/json\r\n"
-                      "Content-Length: %zu\r\n\r\n"
-                      "%s",
-                      err_resp.length(),
-                      err_resp.c_str());
+                      "Content-Length: %zu\r\n\r\n",
+                      err_resp.size());
+            
+            mg_write(conn, err_resp.data(), err_resp.size());
             return true;
         }
 
@@ -131,10 +136,11 @@ public:
         mg_printf(conn,
                   "HTTP/1.1 201 Created\r\n"
                   "Content-Type: application/json\r\n"
-                  "Content-Length: %zu\r\n\r\n" // <-- Headers end here
-                  "%s",                         // <-- Add format specifier for the body
-                  response_body.length(),
-                  response_body.c_str()); // <-- Pass the body as an argument
+                  "Content-Length: %zu\r\n\r\n", // <-- Headers end here
+                  response_body.size()); // <-- Pass the body as an argument
+        
+        mg_write(conn, response_body.data(), response_body.size());
+
         return true;
     }
     bool handleDelete(CivetServer *server, struct mg_connection *conn) override
@@ -160,10 +166,10 @@ public:
             mg_printf(conn,
                       "HTTP/1.1 400 Bad Request\r\n"
                       "Content-Type: application/json\r\n"
-                      "Content-Length: %zu\r\n\r\n"
-                      "%s",
-                      err_resp.length(),
-                      err_resp.c_str());
+                      "Content-Length: %zu\r\n\r\n",
+                      err_resp.size());
+            mg_write(conn, err_resp.data(), err_resp.size());
+
             return true;
         }
 
@@ -183,10 +189,9 @@ public:
         mg_printf(conn,
                   "HTTP/1.1 200 OK\r\n" // <-- FIX
                   "Content-Type: application/json\r\n"
-                  "Content-Length: %zu\r\n\r\n"
-                  "%s",
-                  response_body.length(),
-                  response_body.c_str());
+                  "Content-Length: %zu\r\n\r\n",
+                  response_body.size());
+        mg_write(conn, response_body.data(), response_body.size());
 
         return true; // We handled the request
     }
@@ -194,8 +199,6 @@ public:
 
 int main(void)
 {
-// VVV ADD THIS LINE VVV
-    std::cout << "\n\n--- RUNNING THE 8-THREAD SERVER (THE NEW CODE) ---\n\n" << std::endl;
     const char *options[] = {
         "listening_ports", "8888", "num_threads", num_threads,
         NULL};
@@ -212,7 +215,7 @@ int main(void)
         CivetServer server(options); // Server starts here
 
         ItemHandler h_item;
-        server.addHandler("/key", h_item);
+        server.addHandler("/key*", h_item);
 
         std::cout << "C++ server running on port 8888." << std::endl;
         std::cout << "Press Enter to exit." << std::endl;

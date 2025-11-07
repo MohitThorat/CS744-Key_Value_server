@@ -32,14 +32,21 @@ std::string random_string(std::mt19937& gen, int length = 10) {
         s.push_back(chars[dist(gen)]);
     return s;
 }
+bool http_post(const std::string& url, const std::string& json) {
+    CURL* curl = curl_easy_init();
+    if(!curl) return false;
 
-// FIX: Functions now accept a CURL handle to reuse it
-bool http_post(CURL* curl, const std::string& url, const std::string& json, struct curl_slist* headers) {
-    // Set POST-specific options
+    struct curl_slist* headers = nullptr;
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 2000L);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json.c_str());
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, NULL); // Unset a potential DELETE
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    
+    // THE FIX: Tell curl not to use signals
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
 
     long code = 0;
     CURLcode res = curl_easy_perform(curl);
@@ -47,39 +54,49 @@ bool http_post(CURL* curl, const std::string& url, const std::string& json, stru
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
     }
 
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
     return (code == 201);
 }
 
-// FIX: Functions now accept a CURL handle to reuse it
-bool http_get(CURL* curl, const std::string& url) {
-    // Set GET-specific options
+bool http_get(const std::string& url) {
+    CURL* curl = curl_easy_init();
+    if(!curl) return false;
+
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L); // Ensure it's a GET
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, NULL); // Unset a potential POST
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, NULL); // Unset a potential POST
-    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, NULL); // Unset a potential DELETE
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 2000L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+
+    // THE FIX: Tell curl not to use signals
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
 
     long code = 0;
     CURLcode res = curl_easy_perform(curl);
     if(res == CURLE_OK)
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
 
+    curl_easy_cleanup(curl);
     return (code == 200);
 }
 
-// FIX: Functions now accept a CURL handle to reuse it
-bool http_delete(CURL* curl, const std::string& url) {
-    // Set DELETE-specific options
+bool http_delete(const std::string& url) {
+    CURL* curl = curl_easy_init();
+    if(!curl) return false;
+
     curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, NULL); // Unset a potential POST
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, NULL); // Unset a potential POST
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 2000L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+
+    // THE FIX: Tell curl not to use signals
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
 
     long code = 0;
     CURLcode res = curl_easy_perform(curl);
     if(res == CURLE_OK)
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
 
+    curl_easy_cleanup(curl);
     return (code == 200);
 }
 
@@ -87,19 +104,6 @@ void client_worker(const std::string& workload) {
     std::mt19937 gen(std::random_device{}());
     std::uniform_int_distribution<> pick(0, POPULAR_KEY_COUNT - 1);
     std::uniform_int_distribution<> mix(0, 99);
-
-    // FIX: Create ONE handle per thread
-    CURL* curl = curl_easy_init();
-    if (!curl) return;
-
-    // FIX: Create headers ONCE per thread for POSTs
-    struct curl_slist* post_headers = nullptr;
-    post_headers = curl_slist_append(post_headers, "Content-Type: application/json");
-
-    // FIX: Set common options ONCE
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 2000L);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L); // Important for multi-threading
 
     while(!stop_test) {
         auto start = std::chrono::steady_clock::now();
@@ -110,15 +114,13 @@ void client_worker(const std::string& workload) {
             std::string val = random_string(gen, 32);
             std::string body = "{\"key\":\"" + key + "\",\"value\":\"" + val + "\"}";
 
-            // FIX: Pass the handle to the function
-            if(http_post(curl, BASE_URL + "/key", body, post_headers)) {
-                ok = http_delete(curl, BASE_URL + "/key/" + key);
+            if(http_post(BASE_URL + "/key", body)) {
+                ok = http_delete(BASE_URL + "/key/" + key);
             }
 
         } else if(workload == "get-all") {
             std::string key = "miss_" + random_string(gen, 12);
-            // FIX: Pass the handle to the function
-            ok = http_get(curl, BASE_URL + "/key?key=" + key);
+            ok = http_get(BASE_URL + "/key?key=" + key);
 
         } else if(workload == "get-popular") {
             std::string key;
@@ -126,8 +128,7 @@ void client_worker(const std::string& workload) {
                 std::lock_guard<std::mutex> lock(popular_keys_mtx);
                 key = popular_keys[pick(gen)];
             }
-            // FIX: Pass the handle to the function
-            ok = http_get(curl, BASE_URL + "/key?key=" + key);
+            ok = http_get(BASE_URL + "/key?key=" + key);
 
         } else if(workload == "get-put") {
             int r = mix(gen);
@@ -137,15 +138,13 @@ void client_worker(const std::string& workload) {
                     std::lock_guard<std::mutex> lock(popular_keys_mtx);
                     key = popular_keys[pick(gen)];
                 }
-                // FIX: Pass the handle to the function
-                ok = http_get(curl, BASE_URL + "/key?key=" + key);
+                ok = http_get(BASE_URL + "/key?key=" + key);
 
             } else if(r < 95) {
                 std::string key = "mix_" + random_string(gen, 12);
                 std::string val = random_string(gen, 32);
                 std::string body = "{\"key\":\"" + key + "\",\"value\":\"" + val + "\"}";
-                // FIX: Pass the handle to the function
-                ok = http_post(curl, BASE_URL + "/key", body, post_headers);
+                ok = http_post(BASE_URL + "/key", body);
 
             } else {
                 std::string key;
@@ -153,8 +152,7 @@ void client_worker(const std::string& workload) {
                     std::lock_guard<std::mutex> lock(popular_keys_mtx);
                     key = popular_keys[pick(gen)];
                 }
-                // FIX: Pass the handle to the function
-                ok = http_delete(curl, BASE_URL + "/key/" + key);
+                ok = http_delete(BASE_URL + "/key/" + key);
             }
         }
 
@@ -168,47 +166,23 @@ void client_worker(const std::string& workload) {
             total_failed++;
         }
     }
-
-    // FIX: Clean up the handle and headers when the thread finishes
-    curl_slist_free_all(post_headers);
-    curl_easy_cleanup(curl);
 }
 
 void pre_populate() {
     std::cout << "Pre-populating popular keys...\n";
     std::mt19937 gen(std::random_device{}());
 
-    // FIX: Use a single, reusable handle for prepopulation
-    CURL* curl = curl_easy_init();
-    if (!curl) {
-        std::cerr << "curl_easy_init failed in prepopulate\n";
-        return;
-    }
-    
-    struct curl_slist* headers = nullptr;
-    headers = curl_slist_append(headers, "Content-Type: application/json");
-    
-    // Set common options
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 2000L);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
-
     for(int i=0; i < POPULAR_KEY_COUNT; i++) {
         std::string key = "popular_" + std::to_string(i);
         std::string val = random_string(gen, 48);
         std::string body = "{\"key\":\"" + key + "\",\"value\":\"" + val + "\"}";
 
-        if(http_post(curl, BASE_URL + "/key", body, headers)) { // FIX: Pass handle
+        if(http_post(BASE_URL + "/key", body)) {
             popular_keys.push_back(key);
         } else {
             std::cerr << "Failed prepopulate: " << key << "\n";
         }
     }
-    
-    // FIX: Clean up
-    curl_slist_free_all(headers);
-    curl_easy_cleanup(curl);
-    
     std::cout << "Done.\n";
 }
 
