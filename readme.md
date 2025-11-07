@@ -6,9 +6,9 @@ It features a high-concurrency, sharded LRU cache for fast read access and an as
 
 This repository is organized into two main parts:
 
-### /Server: The C++ server application.
+`/Server:` The C++ server application.
 
-### /Client: A C++ load generator for benchmarking.
+`/Client:` A C++ load generator for benchmarking.
 
 # Prerequisites
 
@@ -17,8 +17,10 @@ Before building, you must install the required development libraries.
 On Ubuntu/Debian, you can install them with:
 ```
 sudo apt update
-sudo apt install -y libmysqlclient-dev
+sudo apt install mysql-server -y
 ```
+
+Configure an account and enter the details in `Server\src\server.cpp`
 # Server Usage
 
 ## 1. Build the Server
