@@ -15,10 +15,10 @@ This repository is organized into two main parts:
 Before building, you must install the required development libraries.
 
 On Ubuntu/Debian, you can install them with:
-
+```
 sudo apt update
 sudo apt install -y libmysqlclient-dev
-
+```
 # Server Usage
 
 ## 1. Build the Server
