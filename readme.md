@@ -1,4 +1,4 @@
-#C++ Key-Value Server
+# C++ Key-Value Server
 
 This is a high-performance, multi-threaded C++ Key-Value server designed for a cloud systems course (CS744).
 
@@ -6,11 +6,11 @@ It features a high-concurrency, sharded LRU cache for fast read access and an as
 
 This repository is organized into two main parts:
 
-###/Server: The C++ server application.
+### /Server: The C++ server application.
 
-###/Client: A C++ load generator for benchmarking.
+### /Client: A C++ load generator for benchmarking.
 
-#Prerequisites
+# Prerequisites
 
 Before building, you must install the required development libraries.
 
@@ -19,9 +19,9 @@ On Ubuntu/Debian, you can install them with:
 sudo apt update
 sudo apt install -y libmysqlclient-dev
 
-#Server Usage
+# Server Usage
 
-##1. Build the Server
+## 1. Build the Server
 
 Navigate to the Server/ directory and use make.
 ```
@@ -32,7 +32,7 @@ make
 
 This will compile all source files and create the final executable at build/server.
 
-##2. Run the Server
+## 2. Run the Server
 
 From the Server/ directory, simply run the executable:
 ```
@@ -41,9 +41,9 @@ From the Server/ directory, simply run the executable:
 
 The server will start and listen on `http://127.0.0.1:8888`.
 
-#Client (Load Generator) Usage
+# Client (Load Generator) Usage
 
-##1. Build the Client
+## 1. Build the Client
 
 Navigate to the Client/ directory and use make:
 ```
@@ -54,7 +54,7 @@ make
 
 This will create the executable load_gen.
 
-##2. Run the Client
+## 2. Run the Client
 
 The client takes three arguments: <threads>, <duration_secs>, and <workload>.
 
@@ -65,13 +65,13 @@ Usage:
 
 Available Workloads:
 
-###get-popular: 100% read (high cache-hit ratio)
+### get-popular: 100% read (high cache-hit ratio)
 
-###get-all: 100% read (high cache-miss ratio)
+### get-all: 100% read (high cache-miss ratio)
 
-###put-all: 50% POST (write), 50% DELETE
+### put-all: 50% POST (write), 50% DELETE
 
-###get-put: A mixed workload of 80% read, 15% write, 5% delete
+### get-put: A mixed workload of 80% read, 15% write, 5% delete
 
 Example:
 
