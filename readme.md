@@ -63,7 +63,7 @@ Usage:
 ./load_gen <threads> <duration_secs> <workload>
 ```
 
-Available Workloads:
+## Available Workloads:
 
 ### get-popular: 100% read (high cache-hit ratio)
 
