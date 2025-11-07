@@ -10,7 +10,7 @@
 using json = nlohmann::json;
 #define cache_size 1024
 LRUCache cache(cache_size);
-MySQLPool mysql_pool("localhost", "root", "", "KVStore", 3306, 20);
+MySQLPool mysql_pool("localhost", "root", "", "KVStore", 3306, 10);
 #ifdef num_thread
 const char *num_threads = "8";
 #else
