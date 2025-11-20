@@ -1,10 +1,10 @@
 # Compiler for C++
 CXX = g++
-CXXFLAGS = -std=c++20 -Wall -O2 -Dnum_thread -Wno-deprecated-declarations
+CXXFLAGS = -std=c++20 -Wall -O2 -Dnum_thread -Wno-deprecated-declarations 
 
 # Compiler for C (for civetweb.c)
 CC = gcc
-CFLAGS = -Wall -O2 -Dnum_thread -DOPENSSL_API_3_0 -DNO_SSL_DL
+CFLAGS = -Wall -O2 -Dnum_thread -DOPENSSL_API_3_0 -DNO_SSL_DL 
 
 # Linker libraries
 LDLIBS = -lmysqlclient -lpthread -lcrypto -lssl -ldl

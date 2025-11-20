@@ -36,7 +36,7 @@ public:
                 MYSQL *conn = mysql_pool.acquire();
                 value = get_value(conn, key);
                 mysql_pool.release(conn);
-
+              //  cout<<"got a miss"<<endl;
                 if (!value.empty())
                 { // Only cache if we found it
                     cache.put(key, value);
@@ -56,6 +56,7 @@ public:
         else
         {
             // Failure, 'id' was not found
+            
             response_body = "{\"error\": \"No 'key' parameter was provided.\"}";
         }
 

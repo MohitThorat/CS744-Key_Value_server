@@ -3,7 +3,7 @@
 #include <unordered_map>
 #include <list>
 #include <vector>
-#include <mutex> 
+#include <mutex>
 #include <memory> // For std::unique_ptr
 
 #pragma once
@@ -12,17 +12,17 @@
 const size_t NUM_SHARDS = 32;
 
 // Internal structure for each shard - REMAINS UNCHANGED
-struct CacheShard {
+struct CacheShard
+{
     // This cannot be moved!
-    std::mutex mtx; 
-    
+    std::mutex mtx;
+
     // ... other members ...
     std::list<std::string> lru_list;
     // The pair stores: {value, list_iterator}
     std::unordered_map<std::string, std::pair<std::string, std::list<std::string>::iterator>> cache;
-    size_t max_size_per_shard; 
+    size_t max_size_per_shard;
 };
-
 
 class LRUCache
 {
@@ -31,7 +31,7 @@ public:
     void put(const std::string &key, const std::string &value);
     std::string get(const std::string &key);
     bool remove(const std::string &key);
-    
+
 private:
     // CRITICAL FIX: The vector now holds movable unique pointers.
     std::vector<std::unique_ptr<CacheShard>> shards;

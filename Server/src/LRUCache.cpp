@@ -36,7 +36,6 @@ size_t LRUCache::get_shard_index(const string &key) const {
 
 // Helper function now takes a pointer to the shard
 void LRUCache::move_to_front_locked(CacheShard *shard, const string &key) {
-    // Access members using -> (pointer access)
     shard->lru_list.erase(shard->cache[key].second);
     shard->lru_list.push_front(key);
     shard->cache[key].second = shard->lru_list.begin();
